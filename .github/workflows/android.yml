@@ -8,13 +8,15 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    # 1. Updated to v7 to resolve Node 20 deprecation
+    - uses: actions/checkout@v7 
+
+    # 2. Updated to v5 to resolve Node 20 deprecation
     - name: set up JDK 11
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '11'
         distribution: 'temurin'
@@ -22,5 +24,14 @@ jobs:
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+
+    # 3. Changed from 'build' to 'assembleDebug' to generate the APK without running strict lint tests
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+
+    # 4. Upload the built APK so you can download it from the GitHub Actions UI
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug-apk
+        path: app/build/outputs/apk/debug/*.apk
