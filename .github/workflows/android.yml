@@ -5,25 +5,32 @@ on:
     branches: [ "main", "master", "developer" ]
   pull_request:
     branches: [ "main", "master", "developer" ]
-  workflow_dispatch: # Allows manual trigger from GitHub UI
-
-env:
-  ACTIONS_AUDIT_NODE_VERSION: 'false'
+  workflow_dispatch: 
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+    # 1. Bumped to v7 to remove Node 20 deprecation warning
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
+    # 2. Bumped to v5 to remove Node 20 deprecation warning
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '17'
         distribution: 'temurin'
         cache: gradle
+
+    # 3. If gradlew is missing, this step auto-generates it so the build doesn't crash
+    - name: Ensure Gradle Wrapper Exists
+      run: |
+        if [ ! -f gradlew ]; then
+          echo "gradlew missing! Generating wrapper..."
+          gradle wrapper
+        fi
 
     - name: Grant Execute Permission to Gradlew
       run: chmod +x gradlew
@@ -35,4 +42,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/*.apk
