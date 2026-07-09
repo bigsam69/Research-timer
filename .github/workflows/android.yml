@@ -1,37 +1,35 @@
-name: Android CI
+name: Android CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master", "developer" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master", "developer" ]
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Updated to v7 to resolve Node 20 deprecation
-    - uses: actions/checkout@v7 
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-    # 2. Updated to v5 to resolve Node 20 deprecation
-    - name: set up JDK 11
-      uses: actions/setup-java@v5
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'temurin'
         cache: gradle
 
-    - name: Grant execute permission for gradlew
+    - name: Grant Execute Permission to Gradlew
       run: chmod +x gradlew
 
-    # 3. Changed from 'build' to 'assembleDebug' to generate the APK without running strict lint tests
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
-    # 4. Upload the built APK so you can download it from the GitHub Actions UI
-    - name: Upload APK Artifact
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug-apk
-        path: app/build/outputs/apk/debug/*.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
