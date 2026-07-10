@@ -494,3 +494,57 @@ fun ClashProgress(
         }
     }
 }
+
+@Composable
+fun ClashSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String = "clash_switch"
+) {
+    val thumbOffset by animateFloatAsState(
+        targetValue = if (checked) 24f else 0f,
+        label = "switch_thumb"
+    )
+    val trackColor = if (checked) CocButtonGreen else CocInputBg
+    val trackBorderColor = if (checked) CocButtonGreenDark else CocBorder
+
+    Box(
+        modifier = modifier
+            .testTag(testTag)
+            .width(60.dp)
+            .height(34.dp)
+            .border(2.5.dp, trackBorderColor, RoundedCornerShape(17.dp))
+            .background(trackColor, RoundedCornerShape(17.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(4.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = thumbOffset.dp)
+                .size(22.dp)
+                .drawBehind {
+                    drawRoundRect(
+                        color = CocBorder,
+                        topLeft = Offset(0f, 3f),
+                        size = size,
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.dp.toPx(), 11.dp.toPx())
+                    )
+                    drawRoundRect(
+                        color = CocGoldDark,
+                        topLeft = Offset(0f, 1.5f),
+                        size = size,
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.dp.toPx(), 11.dp.toPx())
+                    )
+                    drawRoundRect(
+                        color = CocGold,
+                        topLeft = Offset(0f, 0f),
+                        size = androidx.compose.ui.geometry.Size(size.width, size.height - 1.5f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.dp.toPx(), 11.dp.toPx())
+                    )
+                }
+                .border(1.5.dp, CocBorder, RoundedCornerShape(11.dp))
+        )
+    }
+}

@@ -54,6 +54,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 val focusManager = LocalFocusManager.current
+                var currentScreen by remember { mutableStateOf("main") }
+
                 Scaffold(
                     modifier = Modifier
                         .fillMaxSize()
@@ -71,15 +73,22 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Column(modifier = Modifier.fillMaxSize()) {
                             // 1. CoC Style Wooden Header
-                            WoodenHeaderBar()
+                            WoodenHeaderBar(
+                                currentScreen = currentScreen,
+                                onNavigate = { currentScreen = it }
+                            )
 
-                            // 2. Main Content Area (Scrollable)
+                            // 2. Main Content Area
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth()
                             ) {
-                                ResearchTimerScreenContent()
+                                if (currentScreen == "settings") {
+                                    SettingsScreenContent()
+                                } else {
+                                    ResearchTimerScreenContent()
+                                }
                             }
                         }
                     }
@@ -90,7 +99,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WoodenHeaderBar() {
+fun WoodenHeaderBar(
+    currentScreen: String,
+    onNavigate: (String) -> Unit
+) {
     // CoC Style Wooden Bar with a gradient and thick borders
     Box(
         modifier = Modifier
@@ -108,15 +120,59 @@ fun WoodenHeaderBar() {
             ),
         contentAlignment = Alignment.Center
     ) {
+        if (currentScreen == "settings") {
+            // Back button on the left
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 12.dp)
+                    .size(40.dp)
+                    .testTag("back_button")
+                    .clickable { onNavigate("main") }
+                    .drawBehind {
+                        drawRoundRect(
+                            color = CocBorder,
+                            topLeft = Offset(0f, 4f),
+                            size = size,
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                        )
+                        drawRoundRect(
+                            color = CocGoldDark,
+                            topLeft = Offset(0f, 2f),
+                            size = size,
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                        )
+                        drawRoundRect(
+                            color = CocGold,
+                            topLeft = Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(size.width, size.height - 2f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                        )
+                    }
+                    .border(2.dp, CocBorder, RoundedCornerShape(6.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "◀",
+                    style = TextStyle(
+                        color = CocBorder,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                )
+            }
+        }
+
         // Title text with bold, uppercase, gaming text-shadow style
         Box(contentAlignment = Alignment.Center) {
+            val titleText = if (currentScreen == "settings") "SETTINGS" else "RESEARCH TIMER"
             // Shadow text behind
             Text(
-                text = "RESEARCH TIMER",
+                text = titleText,
                 style = TextStyle(
                     color = CocBorder,
                     fontWeight = FontWeight.Black,
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     letterSpacing = 1.sp,
                     textAlign = TextAlign.Center
                 ),
@@ -124,15 +180,51 @@ fun WoodenHeaderBar() {
             )
             // Foreground text
             Text(
-                text = "RESEARCH TIMER",
+                text = titleText,
                 style = TextStyle(
                     color = CocParchmentBg,
                     fontWeight = FontWeight.Black,
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     letterSpacing = 1.sp,
                     textAlign = TextAlign.Center
                 )
             )
+        }
+
+        if (currentScreen == "main") {
+            // Settings button on the right
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp)
+                    .size(40.dp)
+                    .testTag("settings_button")
+                    .clickable { onNavigate("settings") }
+                    .drawBehind {
+                        drawRoundRect(
+                            color = CocBorder,
+                            topLeft = Offset(0f, 4f),
+                            size = size,
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                        )
+                        drawRoundRect(
+                            color = CocGoldDark,
+                            topLeft = Offset(0f, 2f),
+                            size = size,
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                        )
+                        drawRoundRect(
+                            color = CocGold,
+                            topLeft = Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(size.width, size.height - 2f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                        )
+                    }
+                    .border(2.dp, CocBorder, RoundedCornerShape(6.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⚙️", style = TextStyle(fontSize = 20.sp))
+            }
         }
     }
 }
@@ -149,6 +241,7 @@ fun ResearchTimerScreenContent() {
     
     val inputDaysStr by TimerStateManager.inputDays.collectAsState()
     val inputHoursStr by TimerStateManager.inputHours.collectAsState()
+    val inputOffsetMinutesStr by TimerStateManager.inputOffsetMinutes.collectAsState()
     
     // Notification permission launcher
     var hasNotificationPermission by remember {
@@ -187,8 +280,9 @@ fun ResearchTimerScreenContent() {
     // Efficiency gain calculation: Saved time = Total original duration minus speedup duration
     val efficiencyGainSeconds = totalInputSeconds - boostedSeconds
     
-    // Quick set timer is boosted duration - 1 minute
-    val quickTimerDurationSeconds = boostedSeconds - 60L
+    // Quick set timer is boosted duration minus the custom user offset minutes
+    val offsetMinVal = inputOffsetMinutesStr.toLongOrNull() ?: 0L
+    val quickTimerDurationSeconds = boostedSeconds - (offsetMinVal * 60L)
     
     // Determine actual timer setting value
     val finalTimerDuration = if (quickTimerDurationSeconds <= 0L) {
@@ -319,6 +413,67 @@ fun ResearchTimerScreenContent() {
             }
         }
 
+        // Offset Input Section
+        ClashCard(
+            modifier = Modifier.fillMaxWidth(),
+            isWood = false
+        ) {
+            Text(
+                text = "ALARM OFFSET MINUTES",
+                style = TextStyle(
+                    color = CocTextGrey,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.5.sp,
+                    textAlign = TextAlign.Center
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ClashAdjusterButton(symbol = "-", onClick = {
+                    val current = inputOffsetMinutesStr.toLongOrNull() ?: 0L
+                    TimerStateManager.inputOffsetMinutes.value = maxOf(0L, current - 1L).toString()
+                }, testTag = "sub_offset")
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Box(modifier = Modifier.width(120.dp)) {
+                    ClashTextField(
+                        value = inputOffsetMinutesStr,
+                        onValueChange = { TimerStateManager.inputOffsetMinutes.value = it },
+                        label = "MINUTES",
+                        testTag = "input_offset"
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                ClashAdjusterButton(symbol = "+", onClick = {
+                    val current = inputOffsetMinutesStr.toLongOrNull() ?: 0L
+                    TimerStateManager.inputOffsetMinutes.value = minOf(1440L, current + 1L).toString()
+                }, testTag = "add_offset")
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "The alarm will go off this many minutes before research completion so you can prepare your next upgrade.",
+                style = TextStyle(
+                    color = CocTextGrey,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 14.sp
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         // Magic Scroll Display: Outputs and Ratios
         MagicScrollCard(
             efficiencyGainFormatted = formatCalculatedTime(boostedSeconds),
@@ -332,7 +487,7 @@ fun ResearchTimerScreenContent() {
         ) {
             val hasValidDuration = totalInputSeconds > 0L
             val buttonSubtext = if (hasValidDuration) {
-                "NEW TIME - 1M (${formatCalculatedTime(quickTimerDurationSeconds)})"
+                "NEW TIME - ${inputOffsetMinutesStr}M (${formatCalculatedTime(quickTimerDurationSeconds)})"
             } else {
                 "PLEASE ENTER RESEARCH DURATION"
             }
@@ -763,36 +918,7 @@ fun ElixirBubblesAnimation(isRunning: Boolean) {
     }
 }
 
-@Composable
-fun ClashLoreScroll() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.5.dp, CocBorder.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-            .background(CocStoneCard, RoundedCornerShape(8.dp))
-            .padding(12.dp)
-    ) {
-        Column {
-            Text(
-                text = "⚡ CHIEF'S LOG & TIPS",
-                style = TextStyle(
-                    color = CocGold,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "In Clash of Clans, a Research Potion accelerates research speed in the Laboratory by 24x for 1 hour. This effectively completes 24 hours of research in just 60 minutes, saving you 23 hours! Use this tool to plan upgrades so you never waste a single second of your potion boost.",
-                style = TextStyle(
-                    color = CocTextGrey,
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp
-                )
-            )
-        }
-    }
-}
+
 
 private fun formatSeconds(seconds: Long): String {
     val d = seconds / 86400
@@ -822,4 +948,73 @@ private fun formatCalculatedTime(seconds: Long): String {
     if (s > 0 || list.isEmpty()) list.add("${s}s")
     
     return list.joinToString(" ")
+}
+
+@Composable
+fun SettingsScreenContent() {
+    val gradualVolume by TimerStateManager.gradualVolumeIncrease.collectAsState()
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ClashCard(
+            modifier = Modifier.fillMaxWidth(),
+            isWood = false
+        ) {
+            Text(
+                text = "ALARM OPTION",
+                style = TextStyle(
+                    color = CocTextGrey,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.5.sp,
+                    textAlign = TextAlign.Center
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "GRADUALLY INCREASE VOLUME",
+                        style = TextStyle(
+                            color = CocTextWhite,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "When active, the alarm volume will start low and smoothly rise to full volume over 15 seconds.",
+                        style = TextStyle(
+                            color = CocTextGrey,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                ClashSwitch(
+                    checked = gradualVolume,
+                    onCheckedChange = { TimerStateManager.gradualVolumeIncrease.value = it },
+                    testTag = "gradual_volume_switch"
+                )
+            }
+        }
+    }
 }

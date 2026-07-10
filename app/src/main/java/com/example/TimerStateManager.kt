@@ -11,4 +11,10 @@ object TimerStateManager {
     // Original input states to persist in memory
     val inputDays = MutableStateFlow("0")
     val inputHours = MutableStateFlow("12")
+    
+    // Volume adjustment option
+    val gradualVolumeIncrease = MutableStateFlow(false)
+    
+    // Timer calculation offset
+    val inputOffsetMinutes = MutableStateFlow("1")
 }

@@ -29,6 +29,7 @@ class TimerService : Service() {
     private var timerJob: Job? = null
     private var alarmTimeoutJob: Job? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var volumeJob: Job? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -176,7 +177,7 @@ class TimerService : Service() {
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
-            mediaPlayer = MediaPlayer().apply {
+            val mp = MediaPlayer().apply {
                 setDataSource(applicationContext, alarmUri)
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -186,7 +187,30 @@ class TimerService : Service() {
                 )
                 isLooping = true
                 prepare()
-                start()
+            }
+            mediaPlayer = mp
+
+            if (TimerStateManager.gradualVolumeIncrease.value) {
+                mp.setVolume(0.01f, 0.01f)
+                mp.start()
+                volumeJob?.cancel()
+                volumeJob = serviceScope.launch {
+                    val steps = 15
+                    val durationMs = 15000L // 15 seconds to reach full volume
+                    val stepInterval = durationMs / steps
+                    for (i in 1..steps) {
+                        delay(stepInterval)
+                        val vol = i.toFloat() / steps.toFloat()
+                        try {
+                            mediaPlayer?.setVolume(vol, vol)
+                        } catch (e: Exception) {
+                            break
+                        }
+                    }
+                }
+            } else {
+                mp.setVolume(1.0f, 1.0f)
+                mp.start()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -208,6 +232,8 @@ class TimerService : Service() {
 
     private fun stopAlarmSound() {
         try {
+            volumeJob?.cancel()
+            volumeJob = null
             mediaPlayer?.stop()
             mediaPlayer?.release()
             mediaPlayer = null
