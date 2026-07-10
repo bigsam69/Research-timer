@@ -32,6 +32,22 @@ jobs:
         rm -f gradle/wrapper/gradle-wrapper.jar
         gradle wrapper
 
+    - name: Create Mock Files (Keystore & Google Services)
+      run: |
+        # 1. Generate the expected debug keystore with default standard android credentials
+        keytool -genkeypair -v \
+          -keystore debug.keystore \
+          -alias androiddebugkey \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -dname "CN=Android Debug,O=Android,C=US" \
+          -storepass android \
+          -keypass android
+
+        # 2. Generate a dummy google-services.json to satisfy the Google Services plugin
+        echo '{"project_info":{"project_number":"123","project_id":"mock-id","storage_bucket":"mock.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:123","android_client_info":{"package_name":"com.example"}},"api_key":[{"current_key":"mock_key"}],"services":{"app_invite_service":{"status":1}}}]}' > app/google-services.json
+
     - name: Grant Execute Permission to Gradlew
       run: chmod +x gradlew
 
