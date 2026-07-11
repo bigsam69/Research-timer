@@ -4,6 +4,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +33,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.focus.onFocusChanged
@@ -300,11 +308,28 @@ fun ClashAdjusterButton(
     modifier: Modifier = Modifier,
     testTag: String = "adjuster"
 ) {
+    val currentOnClick by rememberUpdatedState(onClick)
+    val coroutineScope = rememberCoroutineScope()
+
     Box(
         modifier = modifier
             .testTag(testTag)
             .size(46.dp)
-            .clickable(onClick = onClick)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    currentOnClick()
+                    val job = coroutineScope.launch {
+                        delay(350)
+                        while (true) {
+                            currentOnClick()
+                            delay(100)
+                        }
+                    }
+                    waitForUpOrCancellation()
+                    job.cancel()
+                }
+            }
             .drawBehind {
                 // 3D shadow edge
                 drawRoundRect(

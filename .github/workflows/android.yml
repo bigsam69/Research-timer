@@ -47,7 +47,7 @@ jobs:
           -storepass android \
           -keypass android
 
-        echo '{"project_info":{"project_number":"123","project_id":"mock-id","storage_bucket":"mock.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:123","android_client_info":{"package_name":"com.example"}},"api_key":[{"current_key":"mock_key"}],"services":{"app_invite_service":{"status":1}}}]}' > app/google-services.json
+        echo '{"project_info":{"project_number":"123","project_id":"mock-id","storage_bucket":"mock.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:123","android_client_info":{"package_name":"com.aistudio.researchtimer.hvxzqw"}},"api_key":[{"current_key":"mock_key"}],"services":{"app_invite_service":{"status":1}}}]}' > app/google-services.json
 
     - name: Grant Execute Permission to Gradlew
       run: chmod +x gradlew
@@ -64,11 +64,13 @@ jobs:
         name: app-debug-apk
         path: "Research timer.apk"
 
-    # Only publishes to GitHub Releases when a version tag (e.g., v1.0.0) is pushed
+    # Automatically publishes to GitHub Releases when a push commit is made
     - name: Publish to GitHub Releases
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
+      if: github.event_name == 'push'
       with:
+        tag_name: "v1.0.0"
+        name: "Release v1.0.0"
         files: "Research timer.apk"
         draft: false
         prerelease: false

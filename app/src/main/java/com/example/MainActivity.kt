@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -55,6 +56,12 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 val focusManager = LocalFocusManager.current
                 var currentScreen by remember { mutableStateOf("main") }
+
+                if (currentScreen == "settings") {
+                    BackHandler {
+                        currentScreen = "main"
+                    }
+                }
 
                 Scaffold(
                     modifier = Modifier
@@ -230,14 +237,31 @@ fun WoodenHeaderBar(
 }
 
 @Composable
-fun ResearchTimerScreenContent() {
-    val context = LocalContext.current
-    
-    // Collect states
+fun ActiveTimerSection(context: Context) {
     val remainingSeconds by TimerStateManager.remainingSeconds.collectAsState()
     val totalDurationSeconds by TimerStateManager.totalDurationSeconds.collectAsState()
     val isRunning by TimerStateManager.isRunning.collectAsState()
     val isAlarmActive by TimerStateManager.isAlarmActive.collectAsState()
+
+    AnimatedVisibility(
+        visible = isRunning || isAlarmActive,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        ActiveResearchTimerPanel(
+            isRunning = isRunning,
+            isAlarmActive = isAlarmActive,
+            remainingSeconds = remainingSeconds,
+            totalDurationSeconds = totalDurationSeconds,
+            onCancelClick = { TimerService.stopService(context) },
+            onDismissAlarmClick = { TimerService.stopAlarm(context) }
+        )
+    }
+}
+
+@Composable
+fun ResearchTimerScreenContent() {
+    val context = LocalContext.current
     
     val inputDaysStr by TimerStateManager.inputDays.collectAsState()
     val inputHoursStr by TimerStateManager.inputHours.collectAsState()
@@ -314,20 +338,7 @@ fun ResearchTimerScreenContent() {
         }
 
         // Active countdown timer panel styled with dashed border
-        AnimatedVisibility(
-            visible = isRunning || isAlarmActive,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            ActiveResearchTimerPanel(
-                isRunning = isRunning,
-                isAlarmActive = isAlarmActive,
-                remainingSeconds = remainingSeconds,
-                totalDurationSeconds = totalDurationSeconds,
-                onCancelClick = { TimerService.stopService(context) },
-                onDismissAlarmClick = { TimerService.stopAlarm(context) }
-            )
-        }
+        ActiveTimerSection(context)
 
         // Input Section: Stone Panel
         ClashCard(
