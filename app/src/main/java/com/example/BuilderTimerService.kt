@@ -23,7 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class TimerService : Service() {
+class BuilderTimerService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var timerJob: Job? = null
@@ -34,9 +34,9 @@ class TimerService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     companion object {
-        const val CHANNEL_ID_ONGOING = "ResearchTimerOngoingChannel"
-        const val CHANNEL_ID_ALARM = "ResearchTimerAlarmChannel"
-        const val NOTIFICATION_ID = 1337
+        const val CHANNEL_ID_ONGOING = "BuilderTimerOngoingChannel"
+        const val CHANNEL_ID_ALARM = "BuilderTimerAlarmChannel"
+        const val NOTIFICATION_ID = 1338
 
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
@@ -45,7 +45,7 @@ class TimerService : Service() {
         const val EXTRA_DURATION = "EXTRA_DURATION"
 
         fun startService(context: Context, durationSeconds: Long) {
-            val intent = Intent(context, TimerService::class.java).apply {
+            val intent = Intent(context, BuilderTimerService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_DURATION, durationSeconds)
             }
@@ -57,14 +57,14 @@ class TimerService : Service() {
         }
 
         fun stopService(context: Context) {
-            val intent = Intent(context, TimerService::class.java).apply {
+            val intent = Intent(context, BuilderTimerService::class.java).apply {
                 action = ACTION_STOP
             }
             context.startService(intent)
         }
 
         fun stopAlarm(context: Context) {
-            val intent = Intent(context, TimerService::class.java).apply {
+            val intent = Intent(context, BuilderTimerService::class.java).apply {
                 action = ACTION_STOP_ALARM
             }
             context.startService(intent)
@@ -99,11 +99,10 @@ class TimerService : Service() {
                 stopAlarmAndVibration()
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.cancel(NOTIFICATION_ID)
-                // Update notification state but keep service running or stop if complete
-                if (TimerStateManager.remainingSeconds.value <= 0) {
+                if (TimerStateManager.builderRemainingSeconds.value <= 0) {
                     stopSelf()
                 } else {
-                    updateNotification(TimerStateManager.remainingSeconds.value, isComplete = false)
+                    updateNotification(TimerStateManager.builderRemainingSeconds.value, isComplete = false)
                 }
             }
         }
@@ -114,22 +113,20 @@ class TimerService : Service() {
         timerJob?.cancel()
         stopAlarmAndVibration()
 
-        TimerStateManager.totalDurationSeconds.value = durationSeconds
-        TimerStateManager.remainingSeconds.value = durationSeconds
-        TimerStateManager.isRunning.value = true
-        TimerStateManager.isAlarmActive.value = false
+        TimerStateManager.builderTotalDurationSeconds.value = durationSeconds
+        TimerStateManager.builderRemainingSeconds.value = durationSeconds
+        TimerStateManager.builderIsRunning.value = true
+        TimerStateManager.builderIsAlarmActive.value = false
 
-        // Acquire wake lock to keep CPU awake during screen lock / sleep
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ResearchTimer::TimerWakeLock")?.apply {
-                acquire(durationSeconds * 1000L + 60000L) // duration + 60 seconds padding
+            wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BuilderTimer::TimerWakeLock")?.apply {
+                acquire(durationSeconds * 1000L + 60000L)
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        // Start Foreground Service with initial notification
         startForeground(NOTIFICATION_ID, buildNotification(durationSeconds, isComplete = false))
 
         val endTimeMillis = SystemClock.elapsedRealtime() + durationSeconds * 1000L
@@ -138,9 +135,9 @@ class TimerService : Service() {
             while (true) {
                 val currentTime = SystemClock.elapsedRealtime()
                 val remainingMillis = endTimeMillis - currentTime
-                val remaining = maxOf(0L, (remainingMillis + 999L) / 1000L) // round up to feel smooth
+                val remaining = maxOf(0L, (remainingMillis + 999L) / 1000L)
                 
-                TimerStateManager.remainingSeconds.value = remaining
+                TimerStateManager.builderRemainingSeconds.value = remaining
                 
                 if (remaining <= 0) {
                     break
@@ -149,15 +146,14 @@ class TimerService : Service() {
                 updateNotification(remaining, isComplete = false)
                 delay(1000)
             }
-            // Timer Finished!
             triggerAlarm()
         }
     }
 
     private fun triggerAlarm() {
-        TimerStateManager.remainingSeconds.value = 0
-        TimerStateManager.isRunning.value = false
-        TimerStateManager.isAlarmActive.value = true
+        TimerStateManager.builderRemainingSeconds.value = 0
+        TimerStateManager.builderIsRunning.value = false
+        TimerStateManager.builderIsAlarmActive.value = true
 
         updateNotification(0, isComplete = true)
         playAlarmSound()
@@ -165,7 +161,7 @@ class TimerService : Service() {
 
         alarmTimeoutJob?.cancel()
         alarmTimeoutJob = serviceScope.launch {
-            delay(30000L) // only play for 30 seconds
+            delay(30000L)
             stopAlarmAndVibration()
         }
     }
@@ -196,7 +192,7 @@ class TimerService : Service() {
                 volumeJob?.cancel()
                 volumeJob = serviceScope.launch {
                     val steps = 15
-                    val durationMs = 15000L // 15 seconds to reach full volume
+                    val durationMs = 15000L
                     val stepInterval = durationMs / steps
                     for (i in 1..steps) {
                         delay(stepInterval)
@@ -251,7 +247,7 @@ class TimerService : Service() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        TimerStateManager.isAlarmActive.value = false
+        TimerStateManager.builderIsAlarmActive.value = false
     }
 
     private fun stopTimerAndAlarm() {
@@ -259,8 +255,8 @@ class TimerService : Service() {
         alarmTimeoutJob?.cancel()
         alarmTimeoutJob = null
         stopAlarmAndVibration()
-        TimerStateManager.isRunning.value = false
-        TimerStateManager.remainingSeconds.value = 0
+        TimerStateManager.builderIsRunning.value = false
+        TimerStateManager.builderRemainingSeconds.value = 0
         try {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(NOTIFICATION_ID)
@@ -281,10 +277,10 @@ class TimerService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val ongoingChannel = NotificationChannel(
                 CHANNEL_ID_ONGOING,
-                "Research Timer Ongoing",
+                "Builder Timer Ongoing",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows progress of active Clash of Clans research timers."
+                description = "Shows progress of active Clash of Clans builder timers."
                 enableVibration(false)
                 enableLights(false)
                 setSound(null, null)
@@ -292,10 +288,10 @@ class TimerService : Service() {
 
             val alarmChannel = NotificationChannel(
                 CHANNEL_ID_ALARM,
-                "Research Timer Completed Alerts",
+                "Builder Timer Completed Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Alarm alerts when laboratory research is completed."
+                description = "Alarm alerts when builder upgrade is completed."
                 enableVibration(true)
                 setBypassDnd(true)
             }
@@ -307,10 +303,9 @@ class TimerService : Service() {
     }
 
     private fun buildNotification(remainingSeconds: Long, isComplete: Boolean): Notification {
-        val title = if (isComplete) "⚔️ Laboratory Research Completed!" else "🧪 Laboratory Researching..."
-        val text = if (isComplete) "Your Clash upgrade is done! Tap to dismiss." else "Time Remaining: ${formatDuration(remainingSeconds)}"
+        val title = if (isComplete) "⚔️ Builder Upgrade Completed!" else "🧪 Builders Upgrading..."
+        val text = if (isComplete) "Your Clash builder upgrade is done! Tap to dismiss." else "Time Remaining: ${formatDuration(remainingSeconds)}"
 
-        // Open MainActivity when tapping notification
         val openActivityIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -321,8 +316,7 @@ class TimerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Dismiss Alarm Action
-        val dismissIntent = Intent(this, TimerService::class.java).apply {
+        val dismissIntent = Intent(this, BuilderTimerService::class.java).apply {
             action = ACTION_STOP_ALARM
         }
         val dismissPendingIntent = PendingIntent.getService(
@@ -332,8 +326,7 @@ class TimerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Cancel Timer Action
-        val cancelIntent = Intent(this, TimerService::class.java).apply {
+        val cancelIntent = Intent(this, BuilderTimerService::class.java).apply {
             action = ACTION_STOP
         }
         val cancelPendingIntent = PendingIntent.getService(
@@ -347,7 +340,7 @@ class TimerService : Service() {
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // Using safe system icon
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentIntent(pendingIntent)
             .setOngoing(!isComplete)
             .setAutoCancel(isComplete)

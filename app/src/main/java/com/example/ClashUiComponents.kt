@@ -221,6 +221,7 @@ fun ClashButton(
     color: Color = CocButtonGreen,
     darkColor: Color = CocButtonGreenDark,
     lightHighlight: Color = Color.White.copy(alpha = 0.25f),
+    shadowColor: Color = CocButtonGreenBorder,
     enabled: Boolean = true,
     testTag: String = "clash_button"
 ) {
@@ -242,7 +243,7 @@ fun ClashButton(
                 
                 // 3D shadow depth at the bottom
                 drawRoundRect(
-                    color = CocButtonGreenBorder,
+                    color = shadowColor,
                     topLeft = Offset(0f, shadowOffset),
                     size = size,
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx(), 16.dp.toPx())

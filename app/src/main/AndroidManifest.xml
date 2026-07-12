@@ -38,6 +38,16 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Calculates research times and triggers alerts when research finishes." />
         </service>
+
+        <service
+            android:name=".BuilderTimerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Calculates builder upgrade times and triggers alerts when builder upgrades finish." />
+        </service>
     </application>
 
 </manifest>

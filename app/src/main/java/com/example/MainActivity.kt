@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -52,6 +53,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Initialize persistent settings auto-saver
+        TimerStateManager.initialize(this)
+        
         setContent {
             MyApplicationTheme {
                 val focusManager = LocalFocusManager.current
@@ -237,11 +242,174 @@ fun WoodenHeaderBar(
 }
 
 @Composable
-fun ActiveTimerSection(context: Context) {
-    val remainingSeconds by TimerStateManager.remainingSeconds.collectAsState()
-    val totalDurationSeconds by TimerStateManager.totalDurationSeconds.collectAsState()
-    val isRunning by TimerStateManager.isRunning.collectAsState()
-    val isAlarmActive by TimerStateManager.isAlarmActive.collectAsState()
+fun BuilderHammerAnimation(isRunning: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "hammer")
+    
+    val hammerRotation = if (isRunning) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = -35f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "h_rot"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(80.dp)
+            .clip(CircleShape)
+            .background(CocWoodCard)
+            .border(3.dp, CocBorder, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .graphicsLayer(
+                    rotationZ = hammerRotation.value,
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.3f, 0.7f)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "🔨",
+                fontSize = 36.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun ActiveBuilderTimerPanel(
+    isRunning: Boolean,
+    isAlarmActive: Boolean,
+    remainingSeconds: Long,
+    totalDurationSeconds: Long,
+    onCancelClick: () -> Unit,
+    onDismissAlarmClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                drawRoundRect(
+                    color = Color.Black.copy(alpha = 0.25f),
+                    topLeft = Offset(0f, 6f),
+                    size = size,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx(), 12.dp.toPx())
+                )
+            }
+            .border(
+                width = 2.dp,
+                color = CocInputBorder,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(CocInputBg, RoundedCornerShape(12.dp))
+            .padding(14.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PulsingIndicator(isAlarmActive = isAlarmActive)
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = if (isAlarmActive) "ALARM ACTIVE" else "ACTIVE BUILDER TIMER",
+                        style = TextStyle(
+                            color = if (isAlarmActive) Color.Red else CocGold,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            letterSpacing = 1.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = formatSeconds(remainingSeconds),
+                    style = TextStyle(
+                        color = CocTextWhite,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 36.sp,
+                        letterSpacing = (-0.5).sp,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                ) {
+                    if (isAlarmActive) {
+                        ClashButton(
+                            text = "DISMISS",
+                            onClick = onDismissAlarmClick,
+                            color = Color(0xFFE5941A),
+                            darkColor = Color(0xFFB56F0E),
+                            lightHighlight = Color(0xFFFCD34D),
+                            shadowColor = Color(0xFF78350F),
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            testTag = "dismiss_builder_alarm_overlay"
+                        )
+                    }
+
+                    ClashButton(
+                        text = "STOP",
+                        onClick = onCancelClick,
+                        color = Color(0xFFB91C1C),
+                        darkColor = Color(0xFF7F1D1D),
+                        lightHighlight = Color(0xFFEF4444),
+                        shadowColor = Color(0xFF450A0A),
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        testTag = "cancel_builder_timer_overlay"
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                BuilderHammerAnimation(isRunning = isRunning && !isAlarmActive)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val fraction = if (totalDurationSeconds > 0) remainingSeconds.toFloat() / totalDurationSeconds.toFloat() else 0f
+            ClashProgress(progress = fraction, label = "${(fraction * 100).toInt()}%")
+        }
+    }
+}
+
+@Composable
+fun ActiveLaboratoryTimerSection(context: Context) {
+    val remainingSeconds by TimerStateManager.researchRemainingSeconds.collectAsState()
+    val totalDurationSeconds by TimerStateManager.researchTotalDurationSeconds.collectAsState()
+    val isRunning by TimerStateManager.researchIsRunning.collectAsState()
+    val isAlarmActive by TimerStateManager.researchIsAlarmActive.collectAsState()
 
     AnimatedVisibility(
         visible = isRunning || isAlarmActive,
@@ -260,14 +428,34 @@ fun ActiveTimerSection(context: Context) {
 }
 
 @Composable
+fun ActiveBuilderTimerSection(context: Context) {
+    val remainingSeconds by TimerStateManager.builderRemainingSeconds.collectAsState()
+    val totalDurationSeconds by TimerStateManager.builderTotalDurationSeconds.collectAsState()
+    val isRunning by TimerStateManager.builderIsRunning.collectAsState()
+    val isAlarmActive by TimerStateManager.builderIsAlarmActive.collectAsState()
+
+    AnimatedVisibility(
+        visible = isRunning || isAlarmActive,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        ActiveBuilderTimerPanel(
+            isRunning = isRunning,
+            isAlarmActive = isAlarmActive,
+            remainingSeconds = remainingSeconds,
+            totalDurationSeconds = totalDurationSeconds,
+            onCancelClick = { BuilderTimerService.stopService(context) },
+            onDismissAlarmClick = { BuilderTimerService.stopAlarm(context) }
+        )
+    }
+}
+
+@Composable
 fun ResearchTimerScreenContent() {
     val context = LocalContext.current
-    
-    val inputDaysStr by TimerStateManager.inputDays.collectAsState()
-    val inputHoursStr by TimerStateManager.inputHours.collectAsState()
-    val inputOffsetMinutesStr by TimerStateManager.inputOffsetMinutes.collectAsState()
-    
-    // Notification permission launcher
+    var activeTab by remember { mutableStateOf("laboratory") } // "laboratory" or "builder"
+
+    // Common Notification Permissions check
     var hasNotificationPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -287,32 +475,10 @@ fun ResearchTimerScreenContent() {
         hasNotificationPermission = isGranted
     }
 
-    // Auto permission check
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-    }
-
-    // Mathematical values
-    val daysVal = inputDaysStr.toLongOrNull() ?: 0L
-    val hoursVal = inputHoursStr.toLongOrNull() ?: 0L
-    
-    val totalInputSeconds = (daysVal * 24L * 3600L) + (hoursVal * 3600L)
-    val boostedSeconds = totalInputSeconds / 24L
-    
-    // Efficiency gain calculation: Saved time = Total original duration minus speedup duration
-    val efficiencyGainSeconds = totalInputSeconds - boostedSeconds
-    
-    // Quick set timer is boosted duration minus the custom user offset minutes
-    val offsetMinVal = inputOffsetMinutesStr.toLongOrNull() ?: 0L
-    val quickTimerDurationSeconds = boostedSeconds - (offsetMinVal * 60L)
-    
-    // Determine actual timer setting value
-    val finalTimerDuration = if (quickTimerDurationSeconds <= 0L) {
-        10L // Minimum demo fallback
-    } else {
-        quickTimerDurationSeconds
     }
 
     val scrollState = rememberScrollState()
@@ -337,201 +503,486 @@ fun ResearchTimerScreenContent() {
             }
         }
 
-        // Active countdown timer panel styled with dashed border
-        ActiveTimerSection(context)
-
-        // Input Section: Stone Panel
-        ClashCard(
-            modifier = Modifier.fillMaxWidth(),
-            isWood = false
+        // Tab Selector Panel
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(2.5.dp, CocBorder, RoundedCornerShape(12.dp))
+                .background(CocInputBg, RoundedCornerShape(12.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = "LABORATORY DURATION",
-                style = TextStyle(
-                    color = CocTextGrey,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.5.sp,
-                    textAlign = TextAlign.Center
-                ),
+            // Laboratory Tab Button
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .weight(1f)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (activeTab == "laboratory") CocElixir else Color.Transparent)
+                    .clickable { activeTab = "laboratory" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // Days Input
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ClashTextField(
-                        value = inputDaysStr,
-                        onValueChange = { TimerStateManager.inputDays.value = it },
-                        label = "DAYS",
-                        testTag = "input_days"
+                    Text("🧪", fontSize = 16.sp)
+                    Text(
+                        text = "LABORATORY",
+                        style = TextStyle(
+                            color = if (activeTab == "laboratory") CocTextWhite else CocTextGrey,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.5.sp
+                        )
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ClashAdjusterButton(symbol = "-", onClick = {
-                            val current = inputDaysStr.toLongOrNull() ?: 0L
-                            TimerStateManager.inputDays.value = maxOf(0L, current - 1L).toString()
-                        }, testTag = "sub_day")
-                        ClashAdjusterButton(symbol = "+", onClick = {
-                            val current = inputDaysStr.toLongOrNull() ?: 0L
-                            TimerStateManager.inputDays.value = minOf(99L, current + 1L).toString()
-                        }, testTag = "add_day")
-                    }
                 }
+            }
 
+            // Builder Tab Button
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (activeTab == "builder") CocGoldDark else Color.Transparent)
+                    .clickable { activeTab = "builder" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🔨", fontSize = 16.sp)
+                    Text(
+                        text = "BUILDER",
+                        style = TextStyle(
+                            color = if (activeTab == "builder") CocTextWhite else CocTextGrey,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        if (activeTab == "laboratory") {
+            // --- LABORATORY TAB CONTENT ---
+            val inputDaysStr by TimerStateManager.researchInputDays.collectAsState()
+            val inputHoursStr by TimerStateManager.researchInputHours.collectAsState()
+            val inputOffsetMinutesStr by TimerStateManager.researchInputOffsetMinutes.collectAsState()
+
+            val daysVal = inputDaysStr.toLongOrNull() ?: 0L
+            val hoursVal = inputHoursStr.toLongOrNull() ?: 0L
+            val totalInputSeconds = (daysVal * 24L * 3600L) + (hoursVal * 3600L)
+            val boostedSeconds = totalInputSeconds / 24L
+            val efficiencyGainSeconds = totalInputSeconds - boostedSeconds
+            val offsetMinVal = inputOffsetMinutesStr.toLongOrNull() ?: 0L
+            val quickTimerDurationSeconds = boostedSeconds - (offsetMinVal * 60L)
+            val finalTimerDuration = if (quickTimerDurationSeconds <= 0L) 10L else quickTimerDurationSeconds
+
+            ActiveLaboratoryTimerSection(context)
+
+            ClashCard(
+                modifier = Modifier.fillMaxWidth(),
+                isWood = false
+            ) {
                 Text(
-                    text = ":",
+                    text = "LABORATORY DURATION",
                     style = TextStyle(
-                        color = CocTextWhite,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 28.sp
+                        color = CocTextGrey,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        letterSpacing = 1.5.sp,
+                        textAlign = TextAlign.Center
                     ),
-                    modifier = Modifier.padding(bottom = 44.dp)
-                )
-
-                // Hours Input
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    ClashTextField(
-                        value = inputHoursStr,
-                        onValueChange = { TimerStateManager.inputHours.value = it },
-                        label = "HOURS",
-                        testTag = "input_hours"
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ClashAdjusterButton(symbol = "-", onClick = {
-                            val current = inputHoursStr.toLongOrNull() ?: 0L
-                            TimerStateManager.inputHours.value = maxOf(0L, current - 1L).toString()
-                        }, testTag = "sub_hour")
-                        ClashAdjusterButton(symbol = "+", onClick = {
-                            val current = inputHoursStr.toLongOrNull() ?: 0L
-                            TimerStateManager.inputHours.value = minOf(23L, current + 1L).toString()
-                        }, testTag = "add_hour")
-                    }
-                }
-            }
-        }
-
-        // Offset Input Section
-        ClashCard(
-            modifier = Modifier.fillMaxWidth(),
-            isWood = false
-        ) {
-            Text(
-                text = "ALARM OFFSET MINUTES",
-                style = TextStyle(
-                    color = CocTextGrey,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.5.sp,
-                    textAlign = TextAlign.Center
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ClashAdjusterButton(symbol = "-", onClick = {
-                    val current = inputOffsetMinutesStr.toLongOrNull() ?: 0L
-                    TimerStateManager.inputOffsetMinutes.value = maxOf(0L, current - 1L).toString()
-                }, testTag = "sub_offset")
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Box(modifier = Modifier.width(120.dp)) {
-                    ClashTextField(
-                        value = inputOffsetMinutesStr,
-                        onValueChange = { TimerStateManager.inputOffsetMinutes.value = it },
-                        label = "MINUTES",
-                        testTag = "input_offset"
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                ClashAdjusterButton(symbol = "+", onClick = {
-                    val current = inputOffsetMinutesStr.toLongOrNull() ?: 0L
-                    TimerStateManager.inputOffsetMinutes.value = minOf(1440L, current + 1L).toString()
-                }, testTag = "add_offset")
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "The alarm will go off this many minutes before research completion so you can prepare your next upgrade.",
-                style = TextStyle(
-                    color = CocTextGrey,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 14.sp
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        // Magic Scroll Display: Outputs and Ratios
-        MagicScrollCard(
-            efficiencyGainFormatted = formatCalculatedTime(boostedSeconds),
-            ratioLabel = "1/24x"
-        )
-
-        // Action Quick Set Button
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            val hasValidDuration = totalInputSeconds > 0L
-            val buttonSubtext = if (hasValidDuration) {
-                "NEW TIME - ${inputOffsetMinutesStr}M (${formatCalculatedTime(quickTimerDurationSeconds)})"
-            } else {
-                "PLEASE ENTER RESEARCH DURATION"
-            }
-
-            ClashButton(
-                text = "QUICK SET TIMER",
-                subText = buttonSubtext,
-                onClick = {
-                    focusManager.clearFocus()
-                    TimerService.startService(context, finalTimerDuration)
-                },
-                enabled = hasValidDuration,
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "start_timer_action"
-            )
-
-            if (quickTimerDurationSeconds <= 0L && hasValidDuration) {
-                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.5.dp, CocInputBorder, RoundedCornerShape(8.dp))
-                        .background(CocInputBg, RoundedCornerShape(8.dp))
-                        .padding(10.dp)
+                        .padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ClashTextField(
+                            value = inputDaysStr,
+                            onValueChange = { TimerStateManager.researchInputDays.value = it },
+                            label = "DAYS",
+                            testTag = "input_days"
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ClashAdjusterButton(symbol = "-", onClick = {
+                                val current = inputDaysStr.toLongOrNull() ?: 0L
+                                TimerStateManager.researchInputDays.value = maxOf(0L, current - 1L).toString()
+                            }, testTag = "sub_day")
+                            ClashAdjusterButton(symbol = "+", onClick = {
+                                val current = inputDaysStr.toLongOrNull() ?: 0L
+                                TimerStateManager.researchInputDays.value = minOf(99L, current + 1L).toString()
+                            }, testTag = "add_day")
+                        }
+                    }
+
                     Text(
-                        text = "ℹ️ Boosted duration is short. The timer has been clamped to 10 seconds for convenient demonstration.",
+                        text = ":",
                         style = TextStyle(
-                            color = CocTextGrey,
-                            fontSize = 11.sp,
-                            textAlign = TextAlign.Center
+                            color = CocTextWhite,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 28.sp
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.padding(bottom = 44.dp)
                     )
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ClashTextField(
+                            value = inputHoursStr,
+                            onValueChange = { TimerStateManager.researchInputHours.value = it },
+                            label = "HOURS",
+                            testTag = "input_hours"
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ClashAdjusterButton(symbol = "-", onClick = {
+                                val current = inputHoursStr.toLongOrNull() ?: 0L
+                                TimerStateManager.researchInputHours.value = maxOf(0L, current - 1L).toString()
+                            }, testTag = "sub_hour")
+                            ClashAdjusterButton(symbol = "+", onClick = {
+                                val current = inputHoursStr.toLongOrNull() ?: 0L
+                                TimerStateManager.researchInputHours.value = minOf(23L, current + 1L).toString()
+                            }, testTag = "add_hour")
+                        }
+                    }
+                }
+            }
+
+            ClashCard(
+                modifier = Modifier.fillMaxWidth(),
+                isWood = false
+            ) {
+                Text(
+                    text = "ALARM OFFSET MINUTES",
+                    style = TextStyle(
+                        color = CocTextGrey,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        letterSpacing = 1.5.sp,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ClashAdjusterButton(symbol = "-", onClick = {
+                        val current = inputOffsetMinutesStr.toLongOrNull() ?: 0L
+                        TimerStateManager.researchInputOffsetMinutes.value = maxOf(0L, current - 1L).toString()
+                    }, testTag = "sub_offset")
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Box(modifier = Modifier.width(120.dp)) {
+                        ClashTextField(
+                            value = inputOffsetMinutesStr,
+                            onValueChange = { TimerStateManager.researchInputOffsetMinutes.value = it },
+                            label = "MINUTES",
+                            testTag = "input_offset"
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    ClashAdjusterButton(symbol = "+", onClick = {
+                        val current = inputOffsetMinutesStr.toLongOrNull() ?: 0L
+                        TimerStateManager.researchInputOffsetMinutes.value = minOf(1440L, current + 1L).toString()
+                    }, testTag = "add_offset")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "The alarm will go off this many minutes before research completion so you can prepare your next upgrade.",
+                    style = TextStyle(
+                        color = CocTextGrey,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            MagicScrollCard(
+                efficiencyGainFormatted = formatCalculatedTime(boostedSeconds),
+                ratioLabel = "1/24x"
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val hasValidDuration = totalInputSeconds > 0L
+                val buttonSubtext = if (hasValidDuration) {
+                    "NEW TIME - ${inputOffsetMinutesStr}M (${formatCalculatedTime(quickTimerDurationSeconds)})"
+                } else {
+                    "PLEASE ENTER RESEARCH DURATION"
+                }
+
+                ClashButton(
+                    text = "QUICK SET TIMER",
+                    subText = buttonSubtext,
+                    onClick = {
+                        focusManager.clearFocus()
+                        TimerService.startService(context, finalTimerDuration)
+                    },
+                    enabled = hasValidDuration,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "start_timer_action"
+                )
+
+                if (quickTimerDurationSeconds <= 0L && hasValidDuration) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.5.dp, CocInputBorder, RoundedCornerShape(8.dp))
+                            .background(CocInputBg, RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "ℹ️ Boosted duration is short. The timer has been clamped to 10 seconds for convenient demonstration.",
+                            style = TextStyle(
+                                color = CocTextGrey,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        } else {
+            // --- BUILDER TAB CONTENT ---
+            val builderInputDaysStr by TimerStateManager.builderInputDays.collectAsState()
+            val builderInputHoursStr by TimerStateManager.builderInputHours.collectAsState()
+            val builderInputOffsetMinutesStr by TimerStateManager.builderInputOffsetMinutes.collectAsState()
+
+            val builderDaysVal = builderInputDaysStr.toLongOrNull() ?: 0L
+            val builderHoursVal = builderInputHoursStr.toLongOrNull() ?: 0L
+            val builderTotalInputSeconds = (builderDaysVal * 24L * 3600L) + (builderHoursVal * 3600L)
+            val builderBoostedSeconds = builderTotalInputSeconds / 10L
+            val builderEfficiencyGainSeconds = builderTotalInputSeconds - builderBoostedSeconds
+            val builderOffsetMinVal = builderInputOffsetMinutesStr.toLongOrNull() ?: 0L
+            val builderQuickTimerDurationSeconds = builderBoostedSeconds - (builderOffsetMinVal * 60L)
+            val builderFinalTimerDuration = if (builderQuickTimerDurationSeconds <= 0L) 10L else builderQuickTimerDurationSeconds
+
+            ActiveBuilderTimerSection(context)
+
+            ClashCard(
+                modifier = Modifier.fillMaxWidth(),
+                isWood = false
+            ) {
+                Text(
+                    text = "BUILDER UPGRADE DURATION",
+                    style = TextStyle(
+                        color = CocTextGrey,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        letterSpacing = 1.5.sp,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ClashTextField(
+                            value = builderInputDaysStr,
+                            onValueChange = { TimerStateManager.builderInputDays.value = it },
+                            label = "DAYS",
+                            testTag = "builder_input_days"
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ClashAdjusterButton(symbol = "-", onClick = {
+                                val current = builderInputDaysStr.toLongOrNull() ?: 0L
+                                TimerStateManager.builderInputDays.value = maxOf(0L, current - 1L).toString()
+                            }, testTag = "builder_sub_day")
+                            ClashAdjusterButton(symbol = "+", onClick = {
+                                val current = builderInputDaysStr.toLongOrNull() ?: 0L
+                                TimerStateManager.builderInputDays.value = minOf(99L, current + 1L).toString()
+                            }, testTag = "builder_add_day")
+                        }
+                    }
+
+                    Text(
+                        text = ":",
+                        style = TextStyle(
+                            color = CocTextWhite,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 28.sp
+                        ),
+                        modifier = Modifier.padding(bottom = 44.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ClashTextField(
+                            value = builderInputHoursStr,
+                            onValueChange = { TimerStateManager.builderInputHours.value = it },
+                            label = "HOURS",
+                            testTag = "builder_input_hours"
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ClashAdjusterButton(symbol = "-", onClick = {
+                                val current = builderInputHoursStr.toLongOrNull() ?: 0L
+                                TimerStateManager.builderInputHours.value = maxOf(0L, current - 1L).toString()
+                            }, testTag = "builder_sub_hour")
+                            ClashAdjusterButton(symbol = "+", onClick = {
+                                val current = builderInputHoursStr.toLongOrNull() ?: 0L
+                                TimerStateManager.builderInputHours.value = minOf(23L, current + 1L).toString()
+                            }, testTag = "builder_add_hour")
+                        }
+                    }
+                }
+            }
+
+            ClashCard(
+                modifier = Modifier.fillMaxWidth(),
+                isWood = false
+            ) {
+                Text(
+                    text = "ALARM OFFSET MINUTES",
+                    style = TextStyle(
+                        color = CocTextGrey,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        letterSpacing = 1.5.sp,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ClashAdjusterButton(symbol = "-", onClick = {
+                        val current = builderInputOffsetMinutesStr.toLongOrNull() ?: 0L
+                        TimerStateManager.builderInputOffsetMinutes.value = maxOf(0L, current - 1L).toString()
+                    }, testTag = "builder_sub_offset")
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Box(modifier = Modifier.width(120.dp)) {
+                        ClashTextField(
+                            value = builderInputOffsetMinutesStr,
+                            onValueChange = { TimerStateManager.builderInputOffsetMinutes.value = it },
+                            label = "MINUTES",
+                            testTag = "builder_input_offset"
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    ClashAdjusterButton(symbol = "+", onClick = {
+                        val current = builderInputOffsetMinutesStr.toLongOrNull() ?: 0L
+                        TimerStateManager.builderInputOffsetMinutes.value = minOf(1440L, current + 1L).toString()
+                    }, testTag = "builder_add_offset")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "The alarm will go off this many minutes before builder completion so you can prepare your next upgrade.",
+                    style = TextStyle(
+                        color = CocTextGrey,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            MagicScrollCard(
+                efficiencyGainFormatted = formatCalculatedTime(builderBoostedSeconds),
+                ratioLabel = "1/10x"
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val hasValidDuration = builderTotalInputSeconds > 0L
+                val buttonSubtext = if (hasValidDuration) {
+                    "NEW TIME - ${builderInputOffsetMinutesStr}M (${formatCalculatedTime(builderQuickTimerDurationSeconds)})"
+                } else {
+                    "PLEASE ENTER BUILDER DURATION"
+                }
+
+                ClashButton(
+                    text = "QUICK SET TIMER",
+                    subText = buttonSubtext,
+                    onClick = {
+                        focusManager.clearFocus()
+                        BuilderTimerService.startService(context, builderFinalTimerDuration)
+                    },
+                    enabled = hasValidDuration,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "builder_start_timer_action",
+                    color = Color(0xFFE5941A),
+                    darkColor = Color(0xFFB56F0E),
+                    lightHighlight = Color(0xFFFCD34D),
+                    shadowColor = Color(0xFF78350F)
+                )
+
+                if (builderQuickTimerDurationSeconds <= 0L && hasValidDuration) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.5.dp, CocInputBorder, RoundedCornerShape(8.dp))
+                            .background(CocInputBg, RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "ℹ️ Boosted duration is short. The timer has been clamped to 10 seconds for convenient demonstration.",
+                            style = TextStyle(
+                                color = CocTextGrey,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
@@ -645,9 +1096,10 @@ fun ActiveResearchTimerPanel(
                         ClashButton(
                             text = "DISMISS",
                             onClick = onDismissAlarmClick,
-                            color = CocGold,
-                            darkColor = CocGoldDark,
-                            lightHighlight = CocGoldLight,
+                            color = Color(0xFFE5941A),
+                            darkColor = Color(0xFFB56F0E),
+                            lightHighlight = Color(0xFFFCD34D),
+                            shadowColor = Color(0xFF78350F),
                             modifier = Modifier.weight(1f).height(44.dp),
                             testTag = "dismiss_alarm_overlay"
                         )
@@ -659,6 +1111,7 @@ fun ActiveResearchTimerPanel(
                         color = Color(0xFFB91C1C),
                         darkColor = Color(0xFF7F1D1D),
                         lightHighlight = Color(0xFFEF4444),
+                        shadowColor = Color(0xFF450A0A),
                         modifier = Modifier.weight(1f).height(44.dp),
                         testTag = "cancel_timer_overlay"
                     )
