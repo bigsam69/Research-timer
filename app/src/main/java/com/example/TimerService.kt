@@ -306,6 +306,8 @@ class TimerService : Service() {
         }
     }
 
+    private var lastNotificationText: String? = null
+
     private fun buildNotification(remainingSeconds: Long, isComplete: Boolean): Notification {
         val title = if (isComplete) "⚔️ Laboratory Research Completed!" else "🧪 Laboratory Researching..."
         val text = if (isComplete) "Your Clash upgrade is done! Tap to dismiss." else "Time Remaining: ${formatDuration(remainingSeconds)}"
@@ -347,12 +349,13 @@ class TimerService : Service() {
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // Using safe system icon
+            .setSmallIcon(R.drawable.ic_flask)
             .setContentIntent(pendingIntent)
             .setOngoing(!isComplete)
             .setAutoCancel(isComplete)
             .setPriority(if (isComplete) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW)
             .setCategory(if (isComplete) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_PROGRESS)
+            .setOnlyAlertOnce(true)
 
         if (isComplete) {
             builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISMISS ALARM", dismissPendingIntent)
@@ -364,6 +367,12 @@ class TimerService : Service() {
     }
 
     private fun updateNotification(remainingSeconds: Long, isComplete: Boolean) {
+        val currentText = if (isComplete) "complete" else formatDuration(remainingSeconds)
+        if (currentText == lastNotificationText && !isComplete) {
+            return
+        }
+        lastNotificationText = currentText
+
         val notification = buildNotification(remainingSeconds, isComplete)
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
