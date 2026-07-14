@@ -37,16 +37,19 @@ jobs:
 
     - name: Create Mock Files (Keystore & Google Services)
       run: |
-        keytool -genkeypair -v \
-          -keystore debug.keystore \
-          -alias androiddebugkey \
-          -keyalg RSA \
-          -keysize 2048 \
-          -validity 10000 \
-          -dname "CN=Android Debug,O=Android,C=US" \
-          -storepass android \
-          -keypass android
-
+        if [ -f debug.keystore.base64 ]; then
+          base64 -d debug.keystore.base64 > debug.keystore
+        else
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -storepass android \
+            -keypass android
+        fi
         echo '{"project_info":{"project_number":"123","project_id":"mock-id","storage_bucket":"mock.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:123","android_client_info":{"package_name":"com.aistudio.researchtimer.hvxzqw"}},"api_key":[{"current_key":"mock_key"}],"services":{"app_invite_service":{"status":1}}}]}' > app/google-services.json
 
     - name: Grant Execute Permission to Gradlew
@@ -69,8 +72,11 @@ jobs:
       uses: softprops/action-gh-release@v2
       if: github.event_name == 'push'
       with:
-        tag_name: "v1.0.0"
-        name: "Release v1.0.0"
+        tag_name: "v1.0.${{ github.run_number }}"
+        name: "Release v1.0.${{ github.run_number }}"
+        body: |
+          ### Commit Message
+          ${{ github.event.head_commit.message }}
         files: "Research timer.apk"
         draft: false
         prerelease: false
