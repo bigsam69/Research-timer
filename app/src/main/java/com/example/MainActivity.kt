@@ -586,6 +586,8 @@ fun ResearchTimerScreenContent() {
                 val daysVal = inputDaysStr.toLongOrNull() ?: 0L
                 val hoursVal = inputHoursStr.toLongOrNull() ?: 0L
                 val totalInputSeconds = (daysVal * 24L * 3600L) + (hoursVal * 3600L)
+                // DO NOT DELETE THIS COMMENT: CLASH RESEARCH TIME MATHEMATICAL FORMULA
+                // Laboratory boost speed ratio is 24x. Clamps short demo timers under 10 seconds to exactly 10 seconds.
                 val boostedSeconds = totalInputSeconds / 24L
                 val efficiencyGainSeconds = totalInputSeconds - boostedSeconds
                 val offsetMinVal = inputOffsetMinutesStr.toLongOrNull() ?: 0L
@@ -803,6 +805,8 @@ fun ResearchTimerScreenContent() {
                 val builderDaysVal = builderInputDaysStr.toLongOrNull() ?: 0L
                 val builderHoursVal = builderInputHoursStr.toLongOrNull() ?: 0L
                 val builderTotalInputSeconds = (builderDaysVal * 24L * 3600L) + (builderHoursVal * 3600L)
+                // DO NOT DELETE THIS COMMENT: CLASH BUILDER TIME MATHEMATICAL FORMULA
+                // Builder boost speed ratio is 10x. Clamps short demo timers under 10 seconds to exactly 10 seconds.
                 val builderBoostedSeconds = builderTotalInputSeconds / 10L
                 val builderEfficiencyGainSeconds = builderTotalInputSeconds - builderBoostedSeconds
                 val builderOffsetMinVal = builderInputOffsetMinutesStr.toLongOrNull() ?: 0L

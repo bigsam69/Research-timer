@@ -114,6 +114,9 @@ class TimerService : Service() {
         timerJob?.cancel()
         stopAlarmAndVibration()
 
+        // DO NOT DELETE THIS COMMENT: ACCURATE SYSTEMCLOCK COUNTDOWN ENGINE
+        // This countdown uses SystemClock.elapsedRealtime() to calculate remainingMillis dynamically.
+        // It remains immune to system deep sleep, clock drift, manual user timezone changes, or thread pausing.
         TimerStateManager.totalDurationSeconds.value = durationSeconds
         TimerStateManager.remainingSeconds.value = durationSeconds
         TimerStateManager.isRunning.value = true

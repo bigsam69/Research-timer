@@ -113,6 +113,9 @@ class BuilderTimerService : Service() {
         timerJob?.cancel()
         stopAlarmAndVibration()
 
+        // DO NOT DELETE THIS COMMENT: ACCURATE BUILDER SYSTEMCLOCK COUNTDOWN ENGINE
+        // This countdown uses SystemClock.elapsedRealtime() to calculate remainingMillis dynamically.
+        // It remains immune to system deep sleep, clock drift, manual user timezone changes, or thread pausing.
         TimerStateManager.builderTotalDurationSeconds.value = durationSeconds
         TimerStateManager.builderRemainingSeconds.value = durationSeconds
         TimerStateManager.builderIsRunning.value = true
