@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 object TimerStateManager {
@@ -58,28 +59,28 @@ object TimerStateManager {
 
         gradualVolumeIncrease.value = prefs.getBoolean("gradualVolumeIncrease", false)
 
-        // Auto-save changes in background coroutine scope
-        val scope = CoroutineScope(Dispatchers.Main)
+        // Auto-save changes in background IO coroutine scope, dropping initial emission
+        val scope = CoroutineScope(Dispatchers.IO)
         scope.launch {
-            researchInputDays.collect { prefs.edit().putString("researchInputDays", it).apply() }
+            researchInputDays.drop(1).collect { prefs.edit().putString("researchInputDays", it).apply() }
         }
         scope.launch {
-            researchInputHours.collect { prefs.edit().putString("researchInputHours", it).apply() }
+            researchInputHours.drop(1).collect { prefs.edit().putString("researchInputHours", it).apply() }
         }
         scope.launch {
-            researchInputOffsetMinutes.collect { prefs.edit().putString("researchInputOffsetMinutes", it).apply() }
+            researchInputOffsetMinutes.drop(1).collect { prefs.edit().putString("researchInputOffsetMinutes", it).apply() }
         }
         scope.launch {
-            builderInputDays.collect { prefs.edit().putString("builderInputDays", it).apply() }
+            builderInputDays.drop(1).collect { prefs.edit().putString("builderInputDays", it).apply() }
         }
         scope.launch {
-            builderInputHours.collect { prefs.edit().putString("builderInputHours", it).apply() }
+            builderInputHours.drop(1).collect { prefs.edit().putString("builderInputHours", it).apply() }
         }
         scope.launch {
-            builderInputOffsetMinutes.collect { prefs.edit().putString("builderInputOffsetMinutes", it).apply() }
+            builderInputOffsetMinutes.drop(1).collect { prefs.edit().putString("builderInputOffsetMinutes", it).apply() }
         }
         scope.launch {
-            gradualVolumeIncrease.collect { prefs.edit().putBoolean("gradualVolumeIncrease", it).apply() }
+            gradualVolumeIncrease.drop(1).collect { prefs.edit().putBoolean("gradualVolumeIncrease", it).apply() }
         }
     }
 }
