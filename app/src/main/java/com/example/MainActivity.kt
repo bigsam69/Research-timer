@@ -243,19 +243,20 @@ fun WoodenHeaderBar(
 
 @Composable
 fun BuilderHammerAnimation(isRunning: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "hammer")
-    
-    val hammerRotation = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "h_rot"
-    )
+    var hammerRotation by remember { mutableFloatStateOf(0f) }
 
-    val currentRotation = if (isRunning) hammerRotation.value else 0f
+    LaunchedEffect(isRunning) {
+        if (!isRunning) {
+            hammerRotation = 0f
+            return@LaunchedEffect
+        }
+        var goingDown = true
+        while (true) {
+            hammerRotation = if (goingDown) -35f else 0f
+            goingDown = !goingDown
+            kotlinx.coroutines.delay(400)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -268,7 +269,7 @@ fun BuilderHammerAnimation(isRunning: Boolean) {
         Box(
             modifier = Modifier
                 .graphicsLayer(
-                    rotationZ = currentRotation,
+                    rotationZ = hammerRotation,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.3f, 0.7f)
                 ),
             contentAlignment = Alignment.Center
@@ -1019,16 +1020,20 @@ fun BuilderTabContent(
 
 @Composable
 fun PulsingIndicator(isAlarmActive: Boolean, modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "p_alpha"
-    )
+    var pulseAlpha by remember { mutableFloatStateOf(0.3f) }
+
+    LaunchedEffect(isAlarmActive) {
+        if (!isAlarmActive) {
+            pulseAlpha = 1.0f
+            return@LaunchedEffect
+        }
+        var rising = true
+        while (true) {
+            pulseAlpha = if (rising) 1.0f else 0.3f
+            rising = !rising
+            kotlinx.coroutines.delay(800)
+        }
+    }
 
     Box(
         modifier = modifier
@@ -1323,50 +1328,18 @@ fun ClashPermissionBanner(onRequest: () -> Unit) {
 
 @Composable
 fun ElixirBubblesAnimation(isRunning: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "bubble")
-    
-    val bubbleOffset1 = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -80f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "b1"
-    )
-
-    val bubbleScale1 = infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "bs1"
-    )
-
-    val bubbleOffset2 = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -90f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "b2"
-    )
-
-    val waveShift = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(2500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "waveShift"
-    )
-
     val circlePath = remember { Path() }
     val wavePath = remember { Path() }
+
+    var waveShift by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isRunning) {
+        if (!isRunning) return@LaunchedEffect
+        while (true) {
+            waveShift = ((waveShift + 0.08f) % (2 * Math.PI)).toFloat()
+            kotlinx.coroutines.delay(40)
+        }
+    }
 
     Canvas(
         modifier = Modifier
@@ -1379,17 +1352,15 @@ fun ElixirBubblesAnimation(isRunning: Boolean) {
         circlePath.addOval(androidx.compose.ui.geometry.Rect(Offset.Zero, size))
         
         clipPath(circlePath) {
-            // Draw the pink elixir fluid level inside the sphere
             val fluidHeight = size.height * 0.7f
             wavePath.reset()
             wavePath.moveTo(0f, size.height)
             wavePath.lineTo(0f, size.height - fluidHeight)
             
-            val steps = 20
+            val steps = 12
             for (i in 0..steps) {
                 val x = (i.toFloat() / steps) * size.width
-                val phase = if (isRunning) waveShift.value else 0f
-                val angle = (i.toFloat() / steps) * 2 * Math.PI.toFloat() + phase
+                val angle = (i.toFloat() / steps) * 2 * Math.PI.toFloat() + waveShift
                 val y = size.height - fluidHeight + (Math.sin(angle.toDouble()).toFloat() * 5f)
                 wavePath.lineTo(x, y)
             }
@@ -1397,24 +1368,30 @@ fun ElixirBubblesAnimation(isRunning: Boolean) {
             wavePath.close()
             
             drawPath(wavePath, color = CocElixir)
-            
-            // Bubbles rising
+
             if (isRunning) {
+                val wave = waveShift
+                val scale1 = 0.5f + ((((1.5f + wave) % 1f)) * 0.7f)
                 drawCircle(
                     color = CocElixirLight,
-                    radius = 8f * bubbleScale1.value,
-                    center = Offset(size.width * 0.3f, size.height - 20f + bubbleOffset1.value)
+                    radius = 8f * scale1,
+                    center = Offset(
+                        size.width * 0.3f,
+                        size.height - 20f + ((((3f + wave * 2f) % 1f)) * -80f)
+                    )
                 )
                 drawCircle(
                     color = CocTextWhite,
-                    radius = 12f * (bubbleScale1.value * 0.8f),
-                    center = Offset(size.width * 0.6f, size.height - 40f + bubbleOffset2.value)
+                    radius = 12f * (scale1 * 0.8f),
+                    center = Offset(
+                        size.width * 0.6f,
+                        size.height - 40f + ((((1f + wave * 2.5f) % 1f)) * -90f)
+                    )
                 )
             }
         }
     }
 }
-
 
 
 private fun formatSeconds(seconds: Long): String {
