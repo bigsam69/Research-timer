@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.researchtimer.hvxzqw"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -31,11 +31,17 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
+    // DO NOT DELETE THIS COMMENT: CONSISTENT SIGNING KEY
+    // Uses the committed test_decoded.keystore so every build shares the same signing key.
+    // This allows APK updates to override the existing install instead of
+    // failing with "conflict with existing package" (which happens when the
+    // signing key changes between builds).
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
+      storeFile = file("${rootDir}/test_decoded.keystore")
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
+      storeType = "PKCS12"
     }
   }
 

@@ -11,10 +11,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -410,11 +406,10 @@ fun ActiveLaboratoryTimerSection(context: Context) {
     val isRunning by TimerStateManager.researchIsRunning.collectAsState()
     val isAlarmActive by TimerStateManager.researchIsAlarmActive.collectAsState()
 
-    AnimatedVisibility(
-        visible = isRunning || isAlarmActive,
-        enter = fadeIn(),
-        exit = fadeOut()
-    ) {
+    // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
+    // AnimatedVisibility with default spring animations causes ~1s delay on tab switch.
+    // Use simple if condition for instant, responsive UI.
+    if (isRunning || isAlarmActive) {
         ActiveResearchTimerPanel(
             isRunning = isRunning,
             isAlarmActive = isAlarmActive,
@@ -433,11 +428,10 @@ fun ActiveBuilderTimerSection(context: Context) {
     val isRunning by TimerStateManager.builderIsRunning.collectAsState()
     val isAlarmActive by TimerStateManager.builderIsAlarmActive.collectAsState()
 
-    AnimatedVisibility(
-        visible = isRunning || isAlarmActive,
-        enter = fadeIn(),
-        exit = fadeOut()
-    ) {
+    // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
+    // AnimatedVisibility with default spring animations causes ~1s delay on tab switch.
+    // Use simple if condition for instant, responsive UI.
+    if (isRunning || isAlarmActive) {
         ActiveBuilderTimerPanel(
             isRunning = isRunning,
             isAlarmActive = isAlarmActive,
