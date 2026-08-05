@@ -495,7 +495,7 @@ fun ResearchTimerScreenContent() {
                 indication = null,
                 onClick = { focusManager.clearFocus() }
             ),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Notification permission banner if missing
         if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -509,7 +509,7 @@ fun ResearchTimerScreenContent() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp)
                 .border(2.5.dp, CocBorder, RoundedCornerShape(12.dp))
                 .background(CocInputBg, RoundedCornerShape(12.dp))
                 .padding(4.dp),
