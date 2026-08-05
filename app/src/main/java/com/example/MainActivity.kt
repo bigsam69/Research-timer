@@ -17,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.layout.layout
 import androidx.core.content.ContextCompat
 import com.example.ui.theme.*
 
@@ -400,7 +402,7 @@ fun ActiveBuilderTimerPanel(
 }
 
 @Composable
-fun ActiveLaboratoryTimerSection(context: Context) {
+fun ActiveLaboratoryTimerSection(context: Context, isVisible: Boolean = true) {
     val remainingSeconds by TimerStateManager.researchRemainingSeconds.collectAsState()
     val totalDurationSeconds by TimerStateManager.researchTotalDurationSeconds.collectAsState()
     val isRunning by TimerStateManager.researchIsRunning.collectAsState()
@@ -411,7 +413,7 @@ fun ActiveLaboratoryTimerSection(context: Context) {
     // Use simple if condition for instant, responsive UI.
     if (isRunning || isAlarmActive) {
         ActiveResearchTimerPanel(
-            isRunning = isRunning,
+            isRunning = isRunning && isVisible,
             isAlarmActive = isAlarmActive,
             remainingSeconds = remainingSeconds,
             totalDurationSeconds = totalDurationSeconds,
@@ -422,7 +424,7 @@ fun ActiveLaboratoryTimerSection(context: Context) {
 }
 
 @Composable
-fun ActiveBuilderTimerSection(context: Context) {
+fun ActiveBuilderTimerSection(context: Context, isVisible: Boolean = true) {
     val remainingSeconds by TimerStateManager.builderRemainingSeconds.collectAsState()
     val totalDurationSeconds by TimerStateManager.builderTotalDurationSeconds.collectAsState()
     val isRunning by TimerStateManager.builderIsRunning.collectAsState()
@@ -433,7 +435,7 @@ fun ActiveBuilderTimerSection(context: Context) {
     // Use simple if condition for instant, responsive UI.
     if (isRunning || isAlarmActive) {
         ActiveBuilderTimerPanel(
-            isRunning = isRunning,
+            isRunning = isRunning && isVisible,
             isAlarmActive = isAlarmActive,
             remainingSeconds = remainingSeconds,
             totalDurationSeconds = totalDurationSeconds,
@@ -474,8 +476,16 @@ fun ResearchTimerScreenContent() {
         }
     }
 
-    val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
+
+    // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
+    // Both tabs stay composed at all times. The inactive tab still reserves its
+    // layout space but is not placed, drawn or hit-testable (see keepSpace below).
+    // Switching tabs is therefore a single visibility flip: no disposal, no
+    // rebuild, no scroll reset -> instant and light on every device.
+    val laboratoryScrollState = rememberScrollState()
+    val builderScrollState = rememberScrollState()
+    val isLaboratoryActive = activeTab == "laboratory"
 
     Column(
         modifier = Modifier
@@ -484,22 +494,22 @@ fun ResearchTimerScreenContent() {
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { focusManager.clearFocus() }
-            )
-            .verticalScroll(scrollState)
-            .padding(16.dp),
+            ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Notification permission banner if missing
         if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ClashPermissionBanner {
-                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+            ClashPermissionBanner(
+                onRequest = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
         }
 
         // Tab Selector Panel
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .border(2.5.dp, CocBorder, RoundedCornerShape(12.dp))
                 .background(CocInputBg, RoundedCornerShape(12.dp))
                 .padding(4.dp),
@@ -511,7 +521,7 @@ fun ResearchTimerScreenContent() {
                     .weight(1f)
                     .height(44.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (activeTab == "laboratory") CocElixir else Color.Transparent)
+                    .background(if (isLaboratoryActive) CocElixir else Color.Transparent)
                     .clickable { activeTab = "laboratory" }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
@@ -524,7 +534,7 @@ fun ResearchTimerScreenContent() {
                     Text(
                         text = "LABORATORY",
                         style = TextStyle(
-                            color = if (activeTab == "laboratory") CocTextWhite else CocTextGrey,
+                            color = if (isLaboratoryActive) CocTextWhite else CocTextGrey,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             letterSpacing = 0.5.sp
@@ -539,7 +549,7 @@ fun ResearchTimerScreenContent() {
                     .weight(1f)
                     .height(44.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (activeTab == "builder") CocGoldDark else Color.Transparent)
+                    .background(if (!isLaboratoryActive) CocGoldDark else Color.Transparent)
                     .clickable { activeTab = "builder" }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
@@ -552,7 +562,7 @@ fun ResearchTimerScreenContent() {
                     Text(
                         text = "BUILDER",
                         style = TextStyle(
-                            color = if (activeTab == "builder") CocTextWhite else CocTextGrey,
+                            color = if (!isLaboratoryActive) CocTextWhite else CocTextGrey,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             letterSpacing = 0.5.sp
@@ -562,23 +572,63 @@ fun ResearchTimerScreenContent() {
             }
         }
 
-        Box(modifier = Modifier.fillMaxWidth()) {
-            if (activeTab == "laboratory") {
-                LaboratoryTabContent(context = context, focusManager = focusManager)
-            } else {
-                BuilderTabContent(context = context, focusManager = focusManager)
-            }
+        // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
+        // Stacked content: the active tab is placed on top, the inactive tab is
+        // measured but not placed, so it never draws and never captures touches.
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            LaboratoryTabContent(
+                context = context,
+                focusManager = focusManager,
+                scrollState = laboratoryScrollState,
+                isVisible = isLaboratoryActive,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .keepSpace(isLaboratoryActive)
+            )
+            BuilderTabContent(
+                context = context,
+                focusManager = focusManager,
+                scrollState = builderScrollState,
+                isVisible = !isLaboratoryActive,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .keepSpace(!isLaboratoryActive)
+            )
         }
     }
 }
 
+// DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
+// Measures content but skips its placement, drawing and input when hidden, while
+// still reserving layout space (similar to View.INVISIBLE). Available on every
+// Compose version, unlike Modifier.visible() which requires foundation 1.11+.
+private fun Modifier.keepSpace(visible: Boolean): Modifier = this.then(
+    Modifier.layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) {
+            if (visible) {
+                placeable.place(0, 0)
+            }
+        }
+    }
+)
+
 @Composable
 fun LaboratoryTabContent(
     context: Context,
-    focusManager: androidx.compose.ui.focus.FocusManager
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    scrollState: ScrollState,
+    isVisible: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .verticalScroll(scrollState)
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         val inputDaysStr by TimerStateManager.researchInputDays.collectAsState()
@@ -596,7 +646,7 @@ fun LaboratoryTabContent(
         val quickTimerDurationSeconds = boostedSeconds - (offsetMinVal * 60L)
         val finalTimerDuration = if (quickTimerDurationSeconds <= 0L) 10L else quickTimerDurationSeconds
 
-        ActiveLaboratoryTimerSection(context)
+        ActiveLaboratoryTimerSection(context, isVisible)
 
         ClashCard(
             modifier = Modifier.fillMaxWidth(),
@@ -793,10 +843,15 @@ fun LaboratoryTabContent(
 @Composable
 fun BuilderTabContent(
     context: Context,
-    focusManager: androidx.compose.ui.focus.FocusManager
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    scrollState: ScrollState,
+    isVisible: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .verticalScroll(scrollState)
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         val builderInputDaysStr by TimerStateManager.builderInputDays.collectAsState()
@@ -814,7 +869,7 @@ fun BuilderTabContent(
         val builderQuickTimerDurationSeconds = builderBoostedSeconds - (builderOffsetMinVal * 60L)
         val builderFinalTimerDuration = if (builderQuickTimerDurationSeconds <= 0L) 10L else builderQuickTimerDurationSeconds
 
-        ActiveBuilderTimerSection(context)
+        ActiveBuilderTimerSection(context, isVisible)
 
         ClashCard(
             modifier = Modifier.fillMaxWidth(),
@@ -1286,9 +1341,9 @@ fun SimulatedGameBottomTabs() {
 }
 
 @Composable
-fun ClashPermissionBanner(onRequest: () -> Unit) {
+fun ClashPermissionBanner(onRequest: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .border(2.5.dp, CocBorder, RoundedCornerShape(8.dp))
             .background(CocWoodCard, RoundedCornerShape(8.dp))
