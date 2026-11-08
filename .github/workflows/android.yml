@@ -35,15 +35,11 @@ jobs:
         rm -f gradle/wrapper/gradle-wrapper.jar
         gradle wrapper
 
-    - name: Create Mock Google Services
-      run: |
-        # DO NOT DELETE THIS COMMENT: CONSISTENT SIGNING KEY
-        # The committed test_decoded.keystore is the single signing key used by
-        # build.gradle.kts (debugConfig). Every build shares the same key so APK
-        # updates override the existing install instead of failing with
-        # "conflict with existing package".
-        echo '{"project_info":{"project_number":"123","project_id":"mock-id","storage_bucket":"mock.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:123","android_client_info":{"package_name":"com.aistudio.researchtimer.hvxzqw"}},"api_key":[{"current_key":"mock_key"}],"services":{"app_invite_service":{"status":1}}}]}' > app/google-services.json
-
+    # DO NOT DELETE THIS COMMENT: CONSISTENT SIGNING KEY
+    # The committed test_decoded.keystore is the single signing key used by
+    # build.gradle.kts (debugConfig). Every build shares the same key so APK
+    # updates override the existing install instead of failing with
+    # "conflict with existing package".
     - name: Grant Execute Permission to Gradlew
       run: chmod +x gradlew
 

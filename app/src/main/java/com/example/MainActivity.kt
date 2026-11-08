@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.layout
 import androidx.core.content.ContextCompat
 import com.example.ui.theme.*
+import kotlinx.coroutines.flow.StateFlow
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -284,7 +285,7 @@ fun BuilderHammerAnimation(isRunning: Boolean) {
 fun ActiveBuilderTimerPanel(
     isRunning: Boolean,
     isAlarmActive: Boolean,
-    remainingSeconds: Long,
+    remaining: StateFlow<Long>,
     totalDurationSeconds: Long,
     onCancelClick: () -> Unit,
     onDismissAlarmClick: () -> Unit
@@ -337,18 +338,7 @@ fun ActiveBuilderTimerPanel(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = formatSeconds(remainingSeconds),
-                    style = TextStyle(
-                        color = CocTextWhite,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 36.sp,
-                        letterSpacing = (-0.5).sp,
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                RemainingTimeText(remaining = remaining, modifier = Modifier.fillMaxWidth())
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -395,15 +385,17 @@ fun ActiveBuilderTimerPanel(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val fraction = if (totalDurationSeconds > 0) remainingSeconds.toFloat() / totalDurationSeconds.toFloat() else 0f
-            ClashProgress(progress = fraction, label = "${(fraction * 100).toInt()}%")
+            ClashProgress(
+                remaining = remaining,
+                totalDurationSeconds = totalDurationSeconds,
+                label = "ACTIVE BUILDER PROGRESS"
+            )
         }
     }
 }
 
 @Composable
-fun ActiveLaboratoryTimerSection(context: Context, isVisible: Boolean = true) {
-    val remainingSeconds by TimerStateManager.researchRemainingSeconds.collectAsState()
+fun ActiveLaboratoryTimerSection(context: Context, isVisible: State<Boolean>) {
     val totalDurationSeconds by TimerStateManager.researchTotalDurationSeconds.collectAsState()
     val isRunning by TimerStateManager.researchIsRunning.collectAsState()
     val isAlarmActive by TimerStateManager.researchIsAlarmActive.collectAsState()
@@ -413,9 +405,9 @@ fun ActiveLaboratoryTimerSection(context: Context, isVisible: Boolean = true) {
     // Use simple if condition for instant, responsive UI.
     if (isRunning || isAlarmActive) {
         ActiveResearchTimerPanel(
-            isRunning = isRunning && isVisible,
+            isRunning = isRunning && isVisible.value,
             isAlarmActive = isAlarmActive,
-            remainingSeconds = remainingSeconds,
+            remaining = TimerStateManager.researchRemainingSeconds,
             totalDurationSeconds = totalDurationSeconds,
             onCancelClick = { TimerService.stopService(context) },
             onDismissAlarmClick = { TimerService.stopAlarm(context) }
@@ -424,8 +416,7 @@ fun ActiveLaboratoryTimerSection(context: Context, isVisible: Boolean = true) {
 }
 
 @Composable
-fun ActiveBuilderTimerSection(context: Context, isVisible: Boolean = true) {
-    val remainingSeconds by TimerStateManager.builderRemainingSeconds.collectAsState()
+fun ActiveBuilderTimerSection(context: Context, isVisible: State<Boolean>) {
     val totalDurationSeconds by TimerStateManager.builderTotalDurationSeconds.collectAsState()
     val isRunning by TimerStateManager.builderIsRunning.collectAsState()
     val isAlarmActive by TimerStateManager.builderIsAlarmActive.collectAsState()
@@ -435,9 +426,9 @@ fun ActiveBuilderTimerSection(context: Context, isVisible: Boolean = true) {
     // Use simple if condition for instant, responsive UI.
     if (isRunning || isAlarmActive) {
         ActiveBuilderTimerPanel(
-            isRunning = isRunning && isVisible,
+            isRunning = isRunning && isVisible.value,
             isAlarmActive = isAlarmActive,
-            remainingSeconds = remainingSeconds,
+            remaining = TimerStateManager.builderRemainingSeconds,
             totalDurationSeconds = totalDurationSeconds,
             onCancelClick = { BuilderTimerService.stopService(context) },
             onDismissAlarmClick = { BuilderTimerService.stopAlarm(context) }
@@ -448,7 +439,6 @@ fun ActiveBuilderTimerSection(context: Context, isVisible: Boolean = true) {
 @Composable
 fun ResearchTimerScreenContent() {
     val context = LocalContext.current
-    var activeTab by remember { mutableStateOf("laboratory") } // "laboratory" or "builder"
 
     // Common Notification Permissions check
     var hasNotificationPermission by remember {
@@ -478,14 +468,29 @@ fun ResearchTimerScreenContent() {
 
     val focusManager = LocalFocusManager.current
 
+    // DO NOT DELETE THIS COMMENT: LAST SELECTED TAB PERSISTENCE
+    // Backed by SharedPreferences via TimerStateManager so the app reopens on
+    // the tab the user left it on, across process death and restarts.
     // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
-    // Both tabs stay composed at all times. The inactive tab still reserves its
-    // layout space but is not placed, drawn or hit-testable (see keepSpace below).
-    // Switching tabs is therefore a single visibility flip: no disposal, no
-    // rebuild, no scroll reset -> instant and light on every device.
+    // Tab visibility is driven by snapshot State objects read in the layout
+    // phase only (see keepSpace). Switching tabs therefore invalidates layout
+    // only: neither tab tree recomposes, nothing is disposed, no scroll resets.
+    val selectedTabState = TimerStateManager.selectedTab.collectAsState()
+    val laboratoryActive = remember { derivedStateOf { selectedTabState.value == "laboratory" } }
+    val builderActive = remember { derivedStateOf { selectedTabState.value != "laboratory" } }
+
+    // DO NOT DELETE THIS COMMENT: FAST COLD START
+    // Only the persisted active tab is composed during the first frame. The
+    // other tab is composed right after the first frame is drawn, so startup
+    // stays light while later tab switches remain instant.
+    val initialTab = remember { TimerStateManager.selectedTab.value }
+    val inactiveTabReady by produceState(false) {
+        withFrameNanos { }
+        value = true
+    }
+
     val laboratoryScrollState = rememberScrollState()
     val builderScrollState = rememberScrollState()
-    val isLaboratoryActive = activeTab == "laboratory"
 
     Column(
         modifier = Modifier
@@ -505,112 +510,121 @@ fun ResearchTimerScreenContent() {
             )
         }
 
-        // Tab Selector Panel
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 12.dp)
-                .border(2.5.dp, CocBorder, RoundedCornerShape(12.dp))
-                .background(CocInputBg, RoundedCornerShape(12.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Laboratory Tab Button
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isLaboratoryActive) CocElixir else Color.Transparent)
-                    .clickable { activeTab = "laboratory" }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🧪", fontSize = 16.sp)
-                    Text(
-                        text = "LABORATORY",
-                        style = TextStyle(
-                            color = if (isLaboratoryActive) CocTextWhite else CocTextGrey,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                    )
-                }
-            }
-
-            // Builder Tab Button
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (!isLaboratoryActive) CocGoldDark else Color.Transparent)
-                    .clickable { activeTab = "builder" }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🔨", fontSize = 16.sp)
-                    Text(
-                        text = "BUILDER",
-                        style = TextStyle(
-                            color = if (!isLaboratoryActive) CocTextWhite else CocTextGrey,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                    )
-                }
-            }
-        }
+        TabSelector(selectedTabState = selectedTabState)
 
         // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
         // Stacked content: the active tab is placed on top, the inactive tab is
-        // measured but not placed, so it never draws and never captures touches.
+        // laid out but not placed, so it never draws and never captures touches.
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            LaboratoryTabContent(
-                context = context,
-                focusManager = focusManager,
-                scrollState = laboratoryScrollState,
-                isVisible = isLaboratoryActive,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .keepSpace(isLaboratoryActive)
-            )
-            BuilderTabContent(
-                context = context,
-                focusManager = focusManager,
-                scrollState = builderScrollState,
-                isVisible = !isLaboratoryActive,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .keepSpace(!isLaboratoryActive)
-            )
+            if (initialTab == "laboratory" || inactiveTabReady) {
+                LaboratoryTabContent(
+                    context = context,
+                    focusManager = focusManager,
+                    scrollState = laboratoryScrollState,
+                    isVisible = laboratoryActive,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            if (initialTab == "builder" || inactiveTabReady) {
+                BuilderTabContent(
+                    context = context,
+                    focusManager = focusManager,
+                    scrollState = builderScrollState,
+                    isVisible = builderActive,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabSelector(selectedTabState: State<String>) {
+    val activeTab by selectedTabState
+    val isLaboratoryActive = activeTab == "laboratory"
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            .border(2.5.dp, CocBorder, RoundedCornerShape(12.dp))
+            .background(CocInputBg, RoundedCornerShape(12.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // Laboratory Tab Button
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (isLaboratoryActive) CocElixir else Color.Transparent)
+                .clickable { TimerStateManager.selectedTab.value = "laboratory" }
+                .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🧪", fontSize = 16.sp)
+                Text(
+                    text = "LABORATORY",
+                    style = TextStyle(
+                        color = if (isLaboratoryActive) CocTextWhite else CocTextGrey,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 0.5.sp
+                    )
+                )
+            }
+        }
+
+        // Builder Tab Button
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (!isLaboratoryActive) CocGoldDark else Color.Transparent)
+                .clickable { TimerStateManager.selectedTab.value = "builder" }
+                .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🔨", fontSize = 16.sp)
+                Text(
+                    text = "BUILDER",
+                    style = TextStyle(
+                        color = if (!isLaboratoryActive) CocTextWhite else CocTextGrey,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 0.5.sp
+                    )
+                )
+            }
         }
     }
 }
 
 // DO NOT DELETE THIS COMMENT: INSTANT TAB SWITCH
 // Measures content but skips its placement, drawing and input when hidden, while
-// still reserving layout space (similar to View.INVISIBLE). Available on every
-// Compose version, unlike Modifier.visible() which requires foundation 1.11+.
-private fun Modifier.keepSpace(visible: Boolean): Modifier = this.then(
+// still reserving layout space (similar to View.INVISIBLE). The visibility State
+// is read in the layout phase, so changing tabs re-lays out this node without
+// recomposing the tab content. Available on every Compose version, unlike
+// Modifier.visible() which requires foundation 1.11+.
+private fun Modifier.keepSpace(visible: State<Boolean>): Modifier = this.then(
     Modifier.layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
         layout(placeable.width, placeable.height) {
-            if (visible) {
+            if (visible.value) {
                 placeable.place(0, 0)
             }
         }
@@ -622,11 +636,12 @@ fun LaboratoryTabContent(
     context: Context,
     focusManager: androidx.compose.ui.focus.FocusManager,
     scrollState: ScrollState,
-    isVisible: Boolean = true,
+    isVisible: State<Boolean>,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
+            .keepSpace(isVisible)
             .verticalScroll(scrollState)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -845,11 +860,12 @@ fun BuilderTabContent(
     context: Context,
     focusManager: androidx.compose.ui.focus.FocusManager,
     scrollState: ScrollState,
-    isVisible: Boolean = true,
+    isVisible: State<Boolean>,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
+            .keepSpace(isVisible)
             .verticalScroll(scrollState)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1101,7 +1117,7 @@ fun PulsingIndicator(isAlarmActive: Boolean, modifier: Modifier = Modifier) {
 fun ActiveResearchTimerPanel(
     isRunning: Boolean,
     isAlarmActive: Boolean,
-    remainingSeconds: Long,
+    remaining: StateFlow<Long>,
     totalDurationSeconds: Long,
     onCancelClick: () -> Unit,
     onDismissAlarmClick: () -> Unit
@@ -1155,18 +1171,7 @@ fun ActiveResearchTimerPanel(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = formatSeconds(remainingSeconds),
-                    style = TextStyle(
-                        color = CocTextWhite,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 36.sp,
-                        letterSpacing = (-0.5).sp,
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                RemainingTimeText(remaining = remaining, modifier = Modifier.fillMaxWidth())
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1214,9 +1219,11 @@ fun ActiveResearchTimerPanel(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Simple Progress display
-            val fraction = if (totalDurationSeconds > 0) remainingSeconds.toFloat() / totalDurationSeconds.toFloat() else 0f
-            ClashProgress(progress = fraction, label = "${(fraction * 100).toInt()}%")
+            ClashProgress(
+                remaining = remaining,
+                totalDurationSeconds = totalDurationSeconds,
+                label = "ACTIVE RESEARCH PROGRESS"
+            )
         }
     }
 }
@@ -1442,6 +1449,26 @@ fun ElixirBubblesAnimation(isRunning: Boolean) {
     }
 }
 
+
+// DO NOT DELETE THIS COMMENT: SCOPED COUNTDOWN TEXT
+// Collects the countdown flow inside this tiny composable, so each per-second
+// tick recomposes only this Text instead of the whole active timer panel.
+@Composable
+private fun RemainingTimeText(remaining: StateFlow<Long>, modifier: Modifier = Modifier) {
+    val seconds by remaining.collectAsState()
+    Text(
+        text = formatSeconds(seconds),
+        style = TextStyle(
+            color = CocTextWhite,
+            fontWeight = FontWeight.Black,
+            fontSize = 36.sp,
+            letterSpacing = (-0.5).sp,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.Center
+        ),
+        modifier = modifier
+    )
+}
 
 private fun formatSeconds(seconds: Long): String {
     val d = seconds / 86400

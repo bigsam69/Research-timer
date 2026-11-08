@@ -7,4 +7,6 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Matches CocStoneBg so cold start shows no white flash before Compose draws. -->
+    <color name="coc_stone_bg">#FF1E2A38</color>
 </resources>

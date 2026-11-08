@@ -29,6 +29,9 @@ object TimerStateManager {
     // Global Settings
     val gradualVolumeIncrease = MutableStateFlow(false)
 
+    // UI State
+    val selectedTab = MutableStateFlow("laboratory")
+
     // Legacy support to avoid breaking any direct singletons reference in MainActivity/TimerService
     val totalDurationSeconds = researchTotalDurationSeconds
     val remainingSeconds = researchRemainingSeconds
@@ -58,6 +61,7 @@ object TimerStateManager {
         builderInputOffsetMinutes.value = prefs.getString("builderInputOffsetMinutes", "1") ?: "1"
 
         gradualVolumeIncrease.value = prefs.getBoolean("gradualVolumeIncrease", false)
+        selectedTab.value = prefs.getString("selectedTab", "laboratory") ?: "laboratory"
 
         // Auto-save changes in background IO coroutine scope, dropping initial emission
         val scope = CoroutineScope(Dispatchers.IO)
@@ -81,6 +85,9 @@ object TimerStateManager {
         }
         scope.launch {
             gradualVolumeIncrease.drop(1).collect { prefs.edit().putBoolean("gradualVolumeIncrease", it).apply() }
+        }
+        scope.launch {
+            selectedTab.drop(1).collect { prefs.edit().putString("selectedTab", it).apply() }
         }
     }
 }

@@ -33,9 +33,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
@@ -458,35 +463,30 @@ fun ClashTextField(
     }
 }
 
+// DO NOT DELETE THIS COMMENT: DRAW-PHASE PROGRESS BAR
+// The fill fraction is read inside drawBehind only, so per-second countdown
+// ticks and the animation never trigger recomposition or layout passes.
 @Composable
 fun ClashProgress(
-    progress: Float,
+    remaining: StateFlow<Long>,
+    totalDurationSeconds: Long,
     label: String,
     modifier: Modifier = Modifier
 ) {
-    val animatedProgress = animateFloatAsState(targetValue = progress, label = "progress")
-    
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "ACTIVE RESEARCH PROGRESS",
+                text = label,
                 style = TextStyle(
                     color = CocTextLightGold,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )
             )
-            Text(
-                text = label,
-                style = TextStyle(
-                    color = CocTextWhite,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp
-                )
-            )
+            ProgressPercentText(remaining, totalDurationSeconds)
         }
         
         Spacer(modifier = Modifier.height(6.dp))
@@ -501,24 +501,70 @@ fun ClashProgress(
                 .background(CocInputBg)
                 .padding(2.dp)
         ) {
-            // Animated Fill
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction = animatedProgress.value.coerceIn(0f, 1f))
-                    .clip(RoundedCornerShape(12.dp))
-                    .drawBehind {
-                        // Shiny highlights on green progress bar
-                        drawRect(CocButtonGreen)
-                        drawRect(
-                            color = Color.White.copy(alpha = 0.35f),
-                            size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.4f)
-                        )
-                    }
-                    .border(1.5.dp, CocButtonGreenDark, RoundedCornerShape(12.dp))
+            AnimatedProgressFill(
+                remaining = remaining,
+                totalDurationSeconds = totalDurationSeconds,
+                modifier = Modifier.fillMaxSize()
             )
         }
     }
+}
+
+@Composable
+private fun ProgressPercentText(remaining: StateFlow<Long>, totalDurationSeconds: Long) {
+    val seconds by remaining.collectAsState()
+    val percent = if (totalDurationSeconds > 0) {
+        (seconds.toFloat() / totalDurationSeconds.toFloat() * 100f).toInt().coerceIn(0, 100)
+    } else {
+        0
+    }
+    Text(
+        text = "$percent%",
+        style = TextStyle(
+            color = CocTextWhite,
+            fontWeight = FontWeight.Black,
+            fontSize = 12.sp
+        )
+    )
+}
+
+@Composable
+private fun AnimatedProgressFill(
+    remaining: StateFlow<Long>,
+    totalDurationSeconds: Long,
+    modifier: Modifier = Modifier
+) {
+    val seconds by remaining.collectAsState()
+    val targetProgress = if (totalDurationSeconds > 0) {
+        seconds.toFloat() / totalDurationSeconds.toFloat()
+    } else {
+        0f
+    }
+    val animatedProgress = animateFloatAsState(targetValue = targetProgress, label = "progress")
+
+    Box(
+        modifier = modifier.drawBehind {
+            val fraction = animatedProgress.value.coerceIn(0f, 1f)
+            val fillWidth = size.width * fraction
+            if (fillWidth > 0f) {
+                val radius = CornerRadius(12.dp.toPx())
+                val fillSize = Size(fillWidth, size.height)
+                // Shiny highlights on green progress bar
+                drawRoundRect(color = CocButtonGreen, size = fillSize, cornerRadius = radius)
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.35f),
+                    size = Size(fillWidth, size.height * 0.4f),
+                    cornerRadius = radius
+                )
+                drawRoundRect(
+                    color = CocButtonGreenDark,
+                    size = fillSize,
+                    cornerRadius = radius,
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
+            }
+        }
+    )
 }
 
 @Composable
