@@ -28,12 +28,9 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Regenerate Gradle Wrapper
-      run: |
-        rm -f gradle/wrapper/gradle-wrapper.jar
-        gradle wrapper
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
 
     # DO NOT DELETE THIS COMMENT: CONSISTENT SIGNING KEY
     # The committed test_decoded.keystore is the single signing key used by
